@@ -1,0 +1,355 @@
+# Build script for @VIVADO_PROJECT_NAME@
+# This script is generated from build_project.tcl.in by CMake
+# Variables are substituted during CMake configuration
+
+set project_file "@VIVADO_PROJECT_FILE@"
+set output_dir "@OUTPUT_DIR@"
+set num_jobs @NUM_JOBS@
+set project_name "@VIVADO_PROJECT_NAME@"
+set project_dir "@VIVADO_PROJECT_DIR@"
+set build_dir "@VIVADO_BUILD_DIR@"
+
+# Setup output directories (create symlinks if needed)
+# This is done via a separate setup script before opening the project
+# The symlinks are created by CMake, so we just verify they exist
+if {![file exists "$project_dir/${project_name}.runs"]} {
+    puts "WARNING: Output directories not set up. Run setup script first."
+}
+
+# Open project
+open_project $project_file
+
+# Set runs directory to build directory (if supported)
+# Note: Some Vivado versions allow setting runs directory
+catch {
+    set_property runs_directory "$build_dir/runs" [current_project]
+    puts "Set runs directory to: $build_dir/runs"
+}
+
+# Clear any checkpoint references before resetting runs
+# This prevents errors about missing checkpoint files after clean_all
+set checkpoint_cleared 0
+if {[get_runs -quiet synth_1] != ""} {
+    set synth_run [get_runs synth_1]
+    # Get current checkpoint value
+    set checkpoint [get_property INCREMENTAL_CHECKPOINT $synth_run]
+    if {$checkpoint != ""} {
+        puts "Found checkpoint reference: $checkpoint"
+        # Clear the checkpoint property
+        set_property INCREMENTAL_CHECKPOINT "" $synth_run
+        puts "Cleared incremental checkpoint for synth_1"
+        set checkpoint_cleared 1
+    }
+    # Reset the run (this should also clear checkpoint references)
+    reset_run synth_1
+    puts "Reset synth_1 run"
+}
+if {[get_runs -quiet impl_1] != ""} {
+    set impl_run [get_runs impl_1]
+    # Get current checkpoint value
+    set checkpoint [get_property INCREMENTAL_CHECKPOINT $impl_run]
+    if {$checkpoint != ""} {
+        puts "Found checkpoint reference: $checkpoint"
+        # Clear the checkpoint property
+        set_property INCREMENTAL_CHECKPOINT "" $impl_run
+        puts "Cleared incremental checkpoint for impl_1"
+        set checkpoint_cleared 1
+    }
+    # Reset the run
+    reset_run impl_1
+    puts "Reset impl_1 run"
+}
+
+# Save project after clearing checkpoints (only if we cleared any)
+# Note: reset_run should handle clearing checkpoints, but we save to be safe
+if {$checkpoint_cleared} {
+    # Use write_project_tcl or just let reset_run handle it
+    # Actually, reset_run should be sufficient, but if we need to save:
+    # The project will be saved automatically when we close it
+    # For now, we'll skip explicit save since reset_run handles the checkpoint
+    puts "Checkpoint references cleared. Project will be saved on close."
+}
+
+# Generate targets for block design
+set bd_file [get_files -quiet ${project_name}.bd]
+if {$bd_file != ""} {
+    puts "Found block design: $bd_file"
+    
+    # First, generate targets for the block design
+    generate_target all [get_files $bd_file]
+    puts "Generated targets for block design"
+    
+    # Create HDL wrapper for block design
+    puts "Creating HDL wrapper..."
+    set wrapper_name "${project_name}_wrapper"
+    
+    # Check if wrapper already exists in the project and verify the file actually exists
+    set existing_wrapper [get_files -quiet -norecurse $wrapper_name.v]
+    set wrapper_file ""
+    if {$existing_wrapper != ""} {
+        # Check if the file actually exists on disk
+        if {[file exists $existing_wrapper]} {
+            puts "HDL wrapper already exists in project: $existing_wrapper"
+            set wrapper_file $existing_wrapper
+        } else {
+            puts "Wrapper reference found but file doesn't exist: $existing_wrapper"
+            puts "Removing stale reference and creating new wrapper..."
+            # Remove the stale reference
+            remove_files [get_files $existing_wrapper]
+            set existing_wrapper ""
+        }
+    }
+    
+    if {$wrapper_file == ""} {
+        # Check if wrapper exists in generated directory but not in project
+        set gen_wrapper [glob -nocomplain "${project_dir}/${project_name}.gen/sources_1/bd/${project_name}/hdl/${wrapper_name}.v"]
+        if {$gen_wrapper == ""} {
+            set gen_wrapper [glob -nocomplain "${build_dir}/gen/sources_1/bd/${project_name}/hdl/${wrapper_name}.v"]
+        }
+        
+        if {$gen_wrapper != ""} {
+            puts "Found existing wrapper file: $gen_wrapper"
+            set wrapper_file $gen_wrapper
+            # Add it to the project
+            add_files -norecurse $wrapper_file
+            puts "Added existing wrapper to project"
+        } else {
+            # Create new wrapper
+            puts "Creating new HDL wrapper..."
+            set wrapper_file [make_wrapper -files [get_files $bd_file] -top]
+            if {$wrapper_file != ""} {
+                puts "Wrapper created: $wrapper_file"
+                # Verify the file exists
+                if {![file exists $wrapper_file]} {
+                    error "Wrapper file was created but doesn't exist at: $wrapper_file"
+                }
+                # make_wrapper might add it to utils_1, we need it in sources_1
+                # Check if it's already in the project
+                set wrapper_in_proj [get_files -quiet -norecurse $wrapper_name.v]
+                if {$wrapper_in_proj == ""} {
+                    # Add it explicitly to sources_1
+                    add_files -fileset sources_1 -norecurse $wrapper_file
+                    puts "Added wrapper to sources_1 fileset"
+                } else {
+                    # It's in the project, check if it's in sources_1
+                    set sources1_fileset [get_filesets sources_1]
+                    set in_sources1 [get_files -quiet -of_objects $sources1_fileset $wrapper_name.v]
+                    if {$in_sources1 == ""} {
+                        # Not in sources_1, move it
+                        set_property fileset sources_1 [get_files $wrapper_in_proj]
+                        puts "Moved wrapper to sources_1 fileset"
+                    } else {
+                        puts "Wrapper already in sources_1 fileset"
+                    }
+                }
+                # Ensure the wrapper is enabled for synthesis
+                set wrapper_file_obj [get_files -quiet -norecurse $wrapper_name.v]
+                if {$wrapper_file_obj != ""} {
+                    set_property used_in {synthesis implementation} [get_files $wrapper_file_obj]
+                    puts "Enabled wrapper for synthesis and implementation"
+                }
+            } else {
+                error "Failed to create HDL wrapper!"
+            }
+        }
+    }
+    
+    # Verify wrapper is in the project and ensure it's in sources_1
+    set wrapper_in_project [get_files -quiet -norecurse $wrapper_name.v]
+    puts "Wrapper in project (all filesets): $wrapper_in_project"
+    
+    # Check specifically in sources_1 (get files from sources_1 fileset)
+    set sources1_fileset [get_filesets sources_1]
+    set wrapper_in_sources1_check [get_files -quiet -of_objects $sources1_fileset $wrapper_name.v]
+    puts "Wrapper in sources_1 fileset: $wrapper_in_sources1_check"
+    
+    if {$wrapper_in_sources1_check == ""} {
+        # Wrapper is not in sources_1, need to add it
+        if {$wrapper_in_project != ""} {
+            # It exists but in wrong fileset, move it to sources_1
+            puts "Moving wrapper to sources_1 fileset"
+            set_property fileset sources_1 [get_files $wrapper_in_project]
+        } else {
+            # Not in project at all, find and add it
+            set gen_wrapper_path [glob -nocomplain "${project_dir}/${project_name}.gen/sources_1/bd/${project_name}/hdl/${wrapper_name}.v"]
+            if {$gen_wrapper_path == ""} {
+                set gen_wrapper_path [glob -nocomplain "${build_dir}/gen/sources_1/bd/${project_name}/hdl/${wrapper_name}.v"]
+            }
+            if {$gen_wrapper_path == ""} {
+                # Also check utils_1/imports
+                set utils_wrapper [glob -nocomplain "${project_dir}/${project_name}.srcs/utils_1/imports/synth_1/${wrapper_name}.v"]
+                if {$utils_wrapper != ""} {
+                    set gen_wrapper_path $utils_wrapper
+                }
+            }
+            if {$gen_wrapper_path != ""} {
+                # Add to sources_1 fileset explicitly
+                add_files -fileset sources_1 -norecurse $gen_wrapper_path
+                puts "Added wrapper to sources_1 fileset: $gen_wrapper_path"
+                set wrapper_in_project $gen_wrapper_path
+            } else {
+                error "Wrapper file not found anywhere after creation! Searched in .gen and utils_1"
+            }
+        }
+    } else {
+        puts "Wrapper already in sources_1: $wrapper_in_sources1_check"
+        set wrapper_in_project $wrapper_in_sources1_check
+    }
+    
+    # Force update compile order for sources_1
+    update_compile_order -fileset sources_1 -force
+    puts "Updated compile order for sources_1"
+    
+    # Verify wrapper is in sources_1 and the file exists
+    set sources1_fileset [get_filesets sources_1]
+    set wrapper_in_sources1 [get_files -quiet -of_objects $sources1_fileset $wrapper_name.v]
+    if {$wrapper_in_sources1 == ""} {
+        error "Wrapper not found in sources_1 fileset!"
+    }
+    puts "Wrapper verified in sources_1: $wrapper_in_sources1"
+    
+    # Verify the file actually exists on disk
+    if {![file exists $wrapper_in_sources1]} {
+        error "Wrapper file doesn't exist on disk: $wrapper_in_sources1"
+    }
+    puts "Wrapper file exists on disk: $wrapper_in_sources1"
+    
+    # Ensure wrapper is enabled for synthesis and implementation
+    set wrapper_file_obj [get_files $wrapper_in_sources1]
+    set_property used_in {synthesis implementation} $wrapper_file_obj
+    puts "Enabled wrapper for synthesis and implementation"
+    
+    # Set wrapper as top module for sources_1
+    set_property top $wrapper_name [get_filesets sources_1]
+    puts "Set $wrapper_name as top module for sources_1"
+    
+    # Also set for current fileset
+    set_property top $wrapper_name [current_fileset]
+    puts "Set $wrapper_name as top module for current fileset"
+    
+    # Verify top module is set correctly
+    set current_top [get_property top [get_filesets sources_1]]
+    puts "Current top module in sources_1: $current_top"
+    
+    if {$current_top != $wrapper_name} {
+        error "Failed to set $wrapper_name as top module. Current top: $current_top"
+    }
+    
+    # Save project to ensure changes are persisted
+    # Note: Project will be saved automatically when Vivado closes
+    # But we can try to save explicitly (may fail in batch mode, that's OK)
+    catch {
+        save_project -force
+        puts "Project saved"
+    }
+} else {
+    error "Block design file not found: ${project_name}.bd"
+}
+
+# Run synthesis
+puts "Starting synthesis..."
+launch_runs synth_1 -jobs $num_jobs
+wait_on_run synth_1
+
+# Check synthesis status
+set synth_status [get_property STATUS [get_runs synth_1]]
+set synth_progress [get_property PROGRESS [get_runs synth_1]]
+puts "Synthesis status: $synth_status, Progress: $synth_progress"
+
+if {$synth_status != "synth_design Complete!" && $synth_progress != "100%"} {
+    error "Synthesis failed! Status: $synth_status"
+}
+
+# Run implementation
+puts "Starting implementation..."
+launch_runs impl_1 -jobs $num_jobs
+wait_on_run impl_1
+
+# Check implementation status
+set impl_status [get_property STATUS [get_runs impl_1]]
+set impl_progress [get_property PROGRESS [get_runs impl_1]]
+puts "Implementation status: $impl_status, Progress: $impl_progress"
+
+if {$impl_status != "route_design Complete!" && $impl_progress != "100%"} {
+    error "Implementation failed! Status: $impl_status"
+}
+
+# Generate bitstream
+puts "Generating bitstream..."
+launch_runs impl_1 -to_step write_bitstream -jobs $num_jobs
+wait_on_run impl_1
+
+# Check bitstream generation
+set bitstream_status [get_property STATUS [get_runs impl_1]]
+set bitstream_progress [get_property PROGRESS [get_runs impl_1]]
+puts "Bitstream status: $bitstream_status, Progress: $bitstream_progress"
+
+if {$bitstream_progress != "100%"} {
+    error "Bitstream generation failed! Status: $bitstream_status"
+}
+
+# Get bitstream file from implementation run
+# Check both project directory (via symlink) and build directory
+set bitstream_file [glob -nocomplain "${project_dir}/${project_name}.runs/impl_1/*.bit"]
+if {$bitstream_file == ""} {
+    set bitstream_file [glob -nocomplain "${build_dir}/runs/impl_1/*.bit"]
+}
+if {$bitstream_file == ""} {
+    # Try alternative location
+    set bitstream_file [get_files -quiet -norecurse *.bit]
+}
+if {$bitstream_file != ""} {
+    file copy -force $bitstream_file "$output_dir/"
+    puts "Bitstream copied to: $output_dir/[file tail $bitstream_file]"
+    # Rename bitstream to gpio_demo.bit
+    set final_bitstream "$output_dir/gpio_demo.bit"
+    file rename -force "$output_dir/[file tail $bitstream_file]" $final_bitstream
+    puts "Bitstream renamed to: $final_bitstream"
+} else {
+    puts "WARNING: Bitstream file not found!"
+}
+
+# Export hardware (XSA file)
+puts "Exporting XSA file..."
+set xsa_file "$output_dir/${project_name}_wrapper.xsa"
+write_hw_platform -fixed -include_bit -force -file $xsa_file
+if {[file exists $xsa_file]} {
+    puts "XSA file exported to: $xsa_file"
+} else {
+    error "Failed to export XSA file!"
+}
+
+# Extract HWH file
+puts "Extracting HWH file..."
+set hwh_file "$output_dir/${project_name}.hwh"
+# Try to find HWH in generated block design directory
+# Check both project directory (via symlink) and build directory
+set gen_hwh_pattern "${project_dir}/${project_name}.gen/sources_1/bd/${project_name}/hw_handoff/*.hwh"
+set gen_hwh [glob -nocomplain $gen_hwh_pattern]
+if {$gen_hwh == ""} {
+    set gen_hwh_pattern "${build_dir}/gen/sources_1/bd/${project_name}/hw_handoff/*.hwh"
+    set gen_hwh [glob -nocomplain $gen_hwh_pattern]
+}
+if {$gen_hwh != ""} {
+    file copy -force $gen_hwh $hwh_file
+    puts "HWH file copied to: $hwh_file"
+} else {
+    # Try to get it from the project
+    set bd_hwh [get_files -quiet -norecurse *.hwh]
+    if {$bd_hwh != ""} {
+        file copy -force $bd_hwh $hwh_file
+        puts "HWH file copied to: $hwh_file"
+    } else {
+        puts "WARNING: HWH file not found in expected locations!"
+    }
+}
+
+# Rename HWH file to gpio_demo.hwh
+if {[file exists $hwh_file]} {
+    set final_hwh "$output_dir/gpio_demo.hwh"
+    file rename -force $hwh_file $final_hwh
+    puts "HWH file renamed to: $final_hwh"
+}
+
+puts "Build completed successfully!"
+

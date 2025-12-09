@@ -1,0 +1,11 @@
+# Build folders (CMake build directories)
+**/build/
+
+# Xilinx/Vivado build artifacts, ignored wherever they appear
+**/gpio_led_1.cache
+**/gpio_led_1.gen
+**/gpio_led_1.hw
+**/gpio_led_1.ip_user_files
+**/gpio_led_1.runs
+**/gpio_led_1.sim
+*.jou

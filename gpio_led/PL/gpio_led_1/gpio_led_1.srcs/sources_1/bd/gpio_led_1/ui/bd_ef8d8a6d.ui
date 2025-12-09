@@ -1,0 +1,27 @@
+{
+   "ActiveEmotionalView":"Default View",
+   "Default View_ScaleFactor":"0.827446",
+   "Default View_TopLeft":"0,-544",
+   "ExpandedHierarchyInLayout":"",
+   "guistr":"# # String gsaved with Nlview 7.8.0 2024-04-26 e1825d835c VDI=44 GEI=38 GUI=JA:21.0 TLS
+#  -string -flagsOSRD
+preplace port led_output -pg 1 -lvl 4 -x 1350 -y -190 -defaultsOSRD
+preplace inst zynq_ultra_ps_e_0 -pg 1 -lvl 1 -x 310 -y -230 -defaultsOSRD
+preplace inst axi_gpio_0 -pg 1 -lvl 2 -x 830 -y -420 -defaultsOSRD
+preplace inst axi_smc -pg 1 -lvl 3 -x 1180 -y -280 -defaultsOSRD
+preplace inst rst_ps8_0_96M -pg 1 -lvl 2 -x 830 -y -90 -defaultsOSRD
+preplace netloc zynq_ultra_ps_e_0_pl_clk0 1 0 3 10 -320 630 -280 N
+preplace netloc zynq_ultra_ps_e_0_pl_resetn0 1 1 1 610 -240n
+preplace netloc rst_ps8_0_96M_peripheral_aresetn 1 1 2 640 -270 1010
+preplace netloc axi_gpio_0_GPIO 1 2 2 NJ -420 1330J
+preplace netloc zynq_ultra_ps_e_0_M_AXI_HPM0_LPD 1 1 2 610 -300 N
+preplace netloc axi_smc_M00_AXI 1 1 3 650 -340 1010J -360 1320
+levelinfo -pg 1 -30 310 830 1180 1350
+pagesize -pg 1 -db -bbox -sgen -190 -510 1520 640
+"
+}
+{
+   "da_axi4_cnt":"2",
+   "da_board_cnt":"1",
+   "da_zynq_ultra_ps_e_cnt":"1"
+}
