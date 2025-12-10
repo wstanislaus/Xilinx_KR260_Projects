@@ -1,0 +1,141 @@
+# Generic Vivado build script
+# This script is generated from build_project.tcl.in by CMake
+# Variables are substituted during CMake configuration
+
+set project_file "@VIVADO_PROJECT_FILE@"
+set output_dir "@OUTPUT_DIR@"
+set num_jobs @NUM_JOBS@
+set project_name "@VIVADO_PROJECT_NAME@"
+set project_dir "@VIVADO_PROJECT_DIR@"
+set output_bitstream_name "@OUTPUT_BITSTREAM_NAME@"
+set output_hwh_name "@OUTPUT_HWH_NAME@"
+
+# Open project
+open_project $project_file
+
+# Clear checkpoint references before resetting runs
+if {[get_runs -quiet synth_1] != ""} {
+    set synth_run [get_runs synth_1]
+    set checkpoint [get_property INCREMENTAL_CHECKPOINT $synth_run]
+    if {$checkpoint != ""} {
+        set_property INCREMENTAL_CHECKPOINT "" $synth_run
+        puts "Cleared checkpoint for synth_1"
+    }
+    reset_run synth_1
+}
+if {[get_runs -quiet impl_1] != ""} {
+    set impl_run [get_runs impl_1]
+    set checkpoint [get_property INCREMENTAL_CHECKPOINT $impl_run]
+    if {$checkpoint != ""} {
+        set_property INCREMENTAL_CHECKPOINT "" $impl_run
+        puts "Cleared checkpoint for impl_1"
+    }
+    reset_run impl_1
+}
+
+# Generate targets and create HDL wrapper for block design
+set bd_file [get_files -quiet ${project_name}.bd]
+if {$bd_file != ""} {
+    generate_target all [get_files $bd_file]
+    puts "Generated targets for block design"
+    
+    # Create HDL wrapper
+    set wrapper_name "${project_name}_wrapper"
+    set existing_wrapper [get_files -quiet -norecurse $wrapper_name.v]
+    
+    # Remove stale reference if file doesn't exist
+    if {$existing_wrapper != "" && ![file exists $existing_wrapper]} {
+        remove_files [get_files $existing_wrapper]
+        set existing_wrapper ""
+    }
+    
+    # Create wrapper if needed
+    if {$existing_wrapper == ""} {
+        set wrapper_file [make_wrapper -files [get_files $bd_file] -top]
+        if {$wrapper_file == ""} {
+            error "Failed to create HDL wrapper!"
+        }
+        puts "Created HDL wrapper: $wrapper_file"
+        
+        # Ensure it's in sources_1
+        set sources1_fileset [get_filesets sources_1]
+        set in_sources1 [get_files -quiet -of_objects $sources1_fileset $wrapper_name.v]
+        if {$in_sources1 == ""} {
+            add_files -fileset sources_1 -norecurse $wrapper_file
+        }
+    }
+    
+    # Update compile order and set as top
+    update_compile_order -fileset sources_1 -force
+    set_property top $wrapper_name [get_filesets sources_1]
+    puts "Set $wrapper_name as top module"
+} else {
+    puts "WARNING: No block design found, assuming top module is already set"
+}
+
+# Run synthesis
+puts "Starting synthesis..."
+launch_runs synth_1 -jobs $num_jobs
+wait_on_run synth_1
+
+set synth_status [get_property STATUS [get_runs synth_1]]
+if {$synth_status != "synth_design Complete!"} {
+    error "Synthesis failed! Status: $synth_status"
+}
+
+# Run implementation
+puts "Starting implementation..."
+launch_runs impl_1 -jobs $num_jobs
+wait_on_run impl_1
+
+set impl_status [get_property STATUS [get_runs impl_1]]
+if {$impl_status != "route_design Complete!"} {
+    error "Implementation failed! Status: $impl_status"
+}
+
+# Generate bitstream
+puts "Generating bitstream..."
+launch_runs impl_1 -to_step write_bitstream -jobs $num_jobs
+wait_on_run impl_1
+
+# Copy bitstream to output directory
+set bitstream_file [glob -nocomplain "${project_dir}/${project_name}.runs/impl_1/*.bit"]
+if {$bitstream_file == ""} {
+    set bitstream_file [get_files -quiet -norecurse *.bit]
+}
+if {$bitstream_file != ""} {
+    set final_bitstream "$output_dir/${output_bitstream_name}.bit"
+    file copy -force $bitstream_file $final_bitstream
+    puts "Bitstream: $final_bitstream"
+} else {
+    puts "WARNING: Bitstream file not found!"
+}
+
+# Export XSA file
+puts "Exporting XSA file..."
+set xsa_file "$output_dir/${project_name}_wrapper.xsa"
+write_hw_platform -fixed -include_bit -force -file $xsa_file
+if {[file exists $xsa_file]} {
+    puts "XSA file: $xsa_file"
+} else {
+    error "Failed to export XSA file!"
+}
+
+# Extract HWH file
+set hwh_file "$output_dir/${output_hwh_name}.hwh"
+set gen_hwh [glob -nocomplain "${project_dir}/${project_name}.gen/sources_1/bd/${project_name}/hw_handoff/*.hwh"]
+if {$gen_hwh != ""} {
+    file copy -force $gen_hwh $hwh_file
+    puts "HWH file: $hwh_file"
+} else {
+    set bd_hwh [get_files -quiet -norecurse *.hwh]
+    if {$bd_hwh != ""} {
+        file copy -force $bd_hwh $hwh_file
+        puts "HWH file: $hwh_file"
+    } else {
+        puts "WARNING: HWH file not found!"
+    }
+}
+
+puts "Build completed successfully!"
+
