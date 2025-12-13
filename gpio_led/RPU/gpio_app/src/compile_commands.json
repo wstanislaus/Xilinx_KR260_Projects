@@ -1,0 +1,7 @@
+[
+{
+  "directory": "/home/wstanislaus/git/Xilinx_KR260_Projects/gpio_led/RPU/gpio_app/build",
+  "command": "/tools/Xilinx/2025.2/Vitis/gnu/armr5/lin/gcc-arm-none-eabi/bin/armr5-none-eabi-gcc -DFREERTOS_BSP -I/home/wstanislaus/git/Xilinx_KR260_Projects/gpio_led/RPU/gpio_app/src -isystem /home/wstanislaus/git/Xilinx_KR260_Projects/gpio_led/RPU/platform/export/platform/sw/freertos_psu_cortexr5_0/include -isystem /tools/Xilinx/2025.2/gnu/armr5/lin/gcc-arm-none-eabi/x86_64-oesdk-linux/usr/lib/arm-xilinx-eabi/gcc/arm-xilinx-eabi/13.3.0/include -isystem /tools/Xilinx/2025.2/gnu/armr5/lin/gcc-arm-none-eabi/x86_64-oesdk-linux/usr/lib/arm-xilinx-eabi/gcc/arm-xilinx-eabi/13.3.0/include-fixed -isystem /tools/Xilinx/2025.2/Vitis/gnu/armr5/lin/gcc-arm-none-eabi/armrm-xilinx-eabi/usr/include   -DSDT -mcpu=cortex-r5 -mfloat-abi=hard -mfpu=vfpv3-d16 -DARMR5  -MMD -MP -specs=/home/wstanislaus/git/Xilinx_KR260_Projects/gpio_led/RPU/platform/export/platform/sw/freertos_psu_cortexr5_0/Xilinx.spec -I/home/wstanislaus/git/Xilinx_KR260_Projects/gpio_led/RPU/platform/export/platform/sw/freertos_psu_cortexr5_0/include -Wall -Wextra      -O0  -g3     -U__clang__ -o CMakeFiles/gpio_app.elf.dir/main.c.obj -c /home/wstanislaus/git/Xilinx_KR260_Projects/gpio_led/RPU/gpio_app/src/main.c",
+  "file": "/home/wstanislaus/git/Xilinx_KR260_Projects/gpio_led/RPU/gpio_app/src/main.c"
+}
+]

@@ -2,12 +2,12 @@ cmake_minimum_required(VERSION 3.15)
 project(gpio_demo)
 
 # Configuration variables
-set(VIVADO_PROJECT_NAME "gpio_led_1")
+set(VIVADO_PROJECT_NAME "gpio_led")
 set(VIVADO_PROJECT_DIR "${CMAKE_SOURCE_DIR}/${VIVADO_PROJECT_NAME}")
 set(VIVADO_PROJECT_FILE "${VIVADO_PROJECT_DIR}/${VIVADO_PROJECT_NAME}.xpr")
 set(OUTPUT_DIR "${CMAKE_BINARY_DIR}/output")
-set(OUTPUT_BITSTREAM_NAME "gpio_demo")
-set(OUTPUT_HWH_NAME "gpio_demo")
+set(OUTPUT_BITSTREAM_NAME "gpio_led")
+set(OUTPUT_HWH_NAME "gpio_led")
 
 # Find Vivado
 find_program(VIVADO_EXECUTABLE
