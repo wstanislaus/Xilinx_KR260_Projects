@@ -41,11 +41,15 @@
 #include "xinterrupt_wrap.h"
 #include <stdlib.h>
 
+#define LEGACY_MODE 1
+#define IPI_MODE 1
+
 // Base address for the AXI GPIO IP (Check your .hwh file!)
 #define AXI_GPIO_BASE_ADDR 0x80000000
 #define GPIO_DATA_OFFSET   0x00 // Data Register Offset
 #define GPIO_TRI_OFFSET    0x04      // Tri-State Register Offset (Set direction)
 
+#ifdef IPI_MODE
 // IPI and Shared Memory Configuration
 #define IPI_CH1_BASE       0xFF310000 // RPU0 IPI Channel 1
 #define IPI_ISR_OFFSET     0x10  // Interrupt Status Register
@@ -62,8 +66,14 @@
 #define SHM_ACK_OFFSET     0x04  // Acknowledgment (RPU writes, APU reads)
 #define SHM_ACK_MAGIC      0xDEADBEEF  // Magic value to indicate acknowledgment
 
+#endif /* IPI_MODE */
+
+#ifdef LEGACY_MODE
 // Legacy Shared Memory
 #define LEGACY_SHARED_MEM_ADDR 0x40000000
+#endif /* LEGACY_MODE */
+
+
 
 #define TIMER_ID           1
 #define DELAY_10_SECONDS    10000UL
@@ -83,7 +93,10 @@ volatile int apu_override_active = 0;
 static void prvTxTask( void *pvParameters );
 static void prvRxTask( void *pvParameters );
 static void vTimerCallback( TimerHandle_t pxTimer );
+
+#ifdef IPI_MODE
 static void IPI_Handler(void *CallbackRef);
+#endif /* IPI_MODE */
 
 /*-----------------------------------------------------------*/
 
@@ -161,19 +174,18 @@ int main( void )
     // Configure MPU for PL access (AXI GPIO)
     Xil_SetTlbAttributes(AXI_GPIO_BASE_ADDR, STRONG_ORDERD_SHARED | PRIV_RW_USER_RW);
 
-    // Configure MPU for Shared Memory Access (OCM/DDR) at 0xFF990000
-    Xil_SetTlbAttributes(SHARED_MEM_ADDR, NORM_SHARED_NCACHE | PRIV_RW_USER_RW);
-
+#ifdef LEGACY_MODE
     // Configure MPU for Legacy Shared Memory Access (DDR) at 0x40000000
     Xil_SetTlbAttributes(LEGACY_SHARED_MEM_ADDR, NORM_SHARED_NCACHE | PRIV_RW_USER_RW);
-
     // Initialize Legacy Shared Memory
     Xil_Out32(LEGACY_SHARED_MEM_ADDR, 3);
-    
+#endif /* LEGACY_MODE */
+
+#ifdef IPI_MODE
+    // Configure MPU for Shared Memory Access (OCM/DDR) at 0xFF990000
+    Xil_SetTlbAttributes(SHARED_MEM_ADDR, NORM_SHARED_NCACHE | PRIV_RW_USER_RW);
     // Configure MPU for IPI Access (Map all relevant channels)
     Xil_SetTlbAttributes(IPI_CH1_BASE, STRONG_ORDERD_SHARED | PRIV_RW_USER_RW);
-
-    xil_printf("MPU Configured. Setting up Interrupts...\r\n");
 
     // Initialize IPI following OpenAMP/libmetal pattern:
     // 1. Disable IPI interrupt (IDR)
@@ -228,6 +240,7 @@ int main( void )
             Xil_Out32(IPI_CH1_BASE + IPI_ISR_OFFSET, 0xFFFFFFFF);
         }
     }
+#endif /* IPI_MODE */
 
 
     // 1. Set the GPIO direction to OUTPUT (clear the tri-state register)
@@ -314,6 +327,7 @@ static void vTimerCallback( TimerHandle_t pxTimer )
 
     // Only rotate modes if APU IPI override is NOT active
     if (!apu_override_active) {
+#if defined(LEGACY_MODE)
         // Check Legacy Shared Memory
         Xil_DCacheInvalidateRange(LEGACY_SHARED_MEM_ADDR, 32);
         legacy_val = Xil_In32(LEGACY_SHARED_MEM_ADDR);
@@ -322,6 +336,7 @@ static void vTimerCallback( TimerHandle_t pxTimer )
                  current_blink_mode = (BlinkMode_t)legacy_val;
                  xil_printf("Timer: Legacy Shared Mem set mode to %d\r\n", current_blink_mode);
              }
+#endif /* LEGACY_MODE */
         } else {
             // No legacy override, proceed with rotation
             if (current_blink_mode == BLINK_SLOW) {
@@ -338,6 +353,7 @@ static void vTimerCallback( TimerHandle_t pxTimer )
     }
 }
 
+#ifdef IPI_MODE
 /*-----------------------------------------------------------*/
 /* IPI Interrupt Handler - Following OpenAMP/libmetal pattern */
 static void IPI_Handler(void *CallbackRef) {
@@ -397,3 +413,4 @@ static void IPI_Handler(void *CallbackRef) {
         Xil_Out32(IPI_CH1_BASE + IPI_ISR_OFFSET, 0xFFFFFFFF);
     }
 }
+#endif /* IPI_MODE */
