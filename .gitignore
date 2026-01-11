@@ -9,3 +9,7 @@
 **/gpio_led_1.runs
 **/gpio_led_1.sim
 *.jou
+
+#Ignore python virtual environment
+**/venv/
+**/__pycache__/
