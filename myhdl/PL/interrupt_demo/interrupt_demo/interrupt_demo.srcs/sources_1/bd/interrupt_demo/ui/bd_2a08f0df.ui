@@ -1,0 +1,32 @@
+{
+   "ActiveEmotionalView":"Default View",
+   "Default View_ScaleFactor":"0.954745",
+   "Default View_TopLeft":"230,-340",
+   "ExpandedHierarchyInLayout":"",
+   "guistr":"# # String gsaved with Nlview 7.8.0 2024-04-26 e1825d835c VDI=44 GEI=38 GUI=JA:21.0 TLS
+#  -string -flagsOSRD
+preplace inst zynq_ultra_ps_e_0 -pg 1 -lvl 1 -x 560 -y -50 -defaultsOSRD
+preplace inst interrupt_generator_0 -pg 1 -lvl 1 -x 560 -y -210 -defaultsOSRD
+preplace inst axi_smc -pg 1 -lvl 3 -x 1430 -y -20 -defaultsOSRD
+preplace inst rst_ps8_0_99M -pg 1 -lvl 2 -x 1070 -y 80 -defaultsOSRD
+preplace inst ilconcat_0 -pg 1 -lvl 2 -x 1070 -y -210 -defaultsOSRD
+preplace inst axi_intc_0 -pg 1 -lvl 3 -x 1430 -y -210 -defaultsOSRD
+preplace netloc zynq_ultra_ps_e_0_pl_clk0 1 0 3 260 50 860 -30 1270
+preplace netloc zynq_ultra_ps_e_0_pl_resetn0 1 1 1 880 -50n
+preplace netloc rst_ps8_0_99M_peripheral_aresetn 1 0 3 250 -290 NJ -290 1260
+preplace netloc interrupt_generator_0_interrupt1_out 1 1 1 N -220
+preplace netloc interrupt_generator_0_interrupt2_out 1 1 1 N -200
+preplace netloc axi_intc_0_irq 1 0 4 240 60 870J -20 1250J 70 1590
+preplace netloc ilconcat_0_dout 1 2 1 1280 -210n
+preplace netloc zynq_ultra_ps_e_0_M_AXI_HPM1_FPD 1 1 2 NJ -70 1280
+preplace netloc axi_smc_M00_AXI 1 0 4 240 -300 NJ -300 NJ -300 1580
+preplace netloc axi_smc_M01_AXI 1 2 2 1290 -110 1570
+preplace netloc zynq_ultra_ps_e_0_M_AXI_HPM0_FPD 1 1 2 NJ -90 1290
+levelinfo -pg 1 0 560 1070 1430 1610
+pagesize -pg 1 -db -bbox -sgen 0 -310 1610 180
+"
+}
+{
+   "da_axi4_cnt":"3",
+   "da_zynq_ultra_ps_e_cnt":"1"
+}
